@@ -10,10 +10,15 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class Client {
+    // Remote object
     private MessengerService messengerService;
     private BufferedReader systemBufferedReader;
     private Logger logger;
 
+    /**
+     * Get MessengerService object from Registry
+     * @param port Specify port used by Registry
+     */
     public Client(int port) {
         systemBufferedReader = new BufferedReader(new InputStreamReader(System.in));
         logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
@@ -26,10 +31,14 @@ public class Client {
         logger.log(Level.INFO, "Connected to port " + port);
     }
 
+    /**
+     * Get user input of operation, key and value
+     * Call method of remote object accordingly
+     */
     public void execute() {
         while (true) {
             try {
-                System.out.println("Enter operation");
+                System.out.println("Enter operation (GET, PUT or DEL)");
                 String operation = systemBufferedReader.readLine();
                 if (!Arrays.asList("GET", "PUT", "DEL").contains(operation)) {
                     logger.log(Level.WARNING, String.format("Invalid operation: %s", operation));
