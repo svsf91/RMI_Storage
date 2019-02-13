@@ -13,6 +13,12 @@ public class MessengerServiceImpl implements MessengerService {
         logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
     }
 
+    /**
+     * add key-value pair to HashMap
+     * @param key
+     * @param val
+     * @return message of status
+     */
     @Override
     public String put(String key, String val) {
         logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
@@ -24,6 +30,12 @@ public class MessengerServiceImpl implements MessengerService {
         return String.format("PUT (%s, %s)", key, val);
     }
 
+    /**
+     * retrive value of given key
+     * handle key not exist
+     * @param key
+     * @return message of status
+     */
     @Override
     public String get(String key) {
         logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
@@ -36,6 +48,12 @@ public class MessengerServiceImpl implements MessengerService {
         }
     }
 
+    /**
+     * delete key-value pair given by key
+     * handle key not exist
+     * @param key
+     * @return message of status
+     */
     @Override
     public String del(String key) {
         logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));

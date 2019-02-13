@@ -8,11 +8,16 @@ import java.util.logging.Logger;
 public class Server {
     private Logger logger;
 
+    /**
+     * export MessengerService object through RMI
+     * @param port
+     */
     public Server(int port) {
         logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
         MessengerService messengerService = new MessengerServiceImpl();
         try {
             MessengerService stub = (MessengerService) UnicastRemoteObject.exportObject(messengerService, 1100);
+            // create registry on given port
             Registry registry = LocateRegistry.createRegistry(port);
             registry.rebind("MessengerService", stub);
         } catch (RemoteException e) {
