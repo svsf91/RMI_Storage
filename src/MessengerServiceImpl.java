@@ -1,4 +1,3 @@
-import java.rmi.RemoteException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
@@ -13,30 +12,34 @@ public class MessengerServiceImpl implements MessengerService {
         logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
         logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
     }
+
     @Override
-    public String put(String key, String val){
+    public String put(String key, String val) {
         logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
+        if (map.containsKey(key)) {
+            logger.log(Level.INFO, String.format("%s already exists", key));
+        }
         logger.log(Level.INFO, String.format("PUT (%s, %s)", key, val));
         map.put(key, val);
         return String.format("PUT (%s, %s)", key, val);
     }
 
     @Override
-    public String get(String key){
+    public String get(String key) {
         logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
-        if(map.containsKey(key)) {
+        if (map.containsKey(key)) {
             logger.log(Level.INFO, String.format("GET %s, value is %s", key, map.get(key)));
             return String.format("GET %s, value is %s", key, map.get(key));
         } else {
             logger.log(Level.INFO, String.format("%s does not exist", key));
-            return String.format("%s does not exist";
+            return String.format("%s does not exist", key);
         }
     }
 
     @Override
     public String del(String key) {
         logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
-        if(map.containsKey(key)) {
+        if (map.containsKey(key)) {
             logger.log(Level.INFO, String.format("DELETE %s", key));
             map.remove(key);
             return String.format("%s deleted successfully", key);
