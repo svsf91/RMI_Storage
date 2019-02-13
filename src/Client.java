@@ -33,6 +33,7 @@ public class Client {
                 String operation = systemBufferedReader.readLine();
                 if (!Arrays.asList("GET", "PUT", "DEL").contains(operation)) {
                     logger.log(Level.WARNING, String.format("Invalid operation: %s", operation));
+                    continue;
                 }
                 System.out.println("Enter key");
                 String key = systemBufferedReader.readLine();
