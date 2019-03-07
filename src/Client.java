@@ -53,14 +53,14 @@ public class Client {
                         break;
                     }
                     case "DEL": {
-                        String res = messengerService.del(key);
+                        String res = messengerService.del(key, true);
                         logger.log(Level.INFO, res);
                         break;
                     }
                     case "PUT": {
                         System.out.println("Enter value");
                         String value = systemBufferedReader.readLine();
-                        String res = messengerService.put(key, value);
+                        String res = messengerService.put(key, value, true);
                         logger.log(Level.INFO, res);
                         break;
                     }
