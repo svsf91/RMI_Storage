@@ -11,7 +11,7 @@ import java.util.logging.Logger;
 
 public class Client {
     // Remote object
-    private MessengerService messengerService;
+    protected MessengerService messengerService;
     private BufferedReader systemBufferedReader;
     private Logger logger;
 
