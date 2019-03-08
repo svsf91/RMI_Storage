@@ -48,24 +48,26 @@ public class MessengerServiceImpl implements MessengerService {
      * by invoking their isReady()
      * @return boolean
      */
-    private synchronized boolean checkReady() {
+    private synchronized boolean checkReady(boolean recur) {
         if (!isReady()) {
             return false;
         }
-        for (MessengerService ms: messengerServices) {
-            try {
-                if (!ms.isReady()) {
+        if (recur) {
+            for (MessengerService ms : messengerServices) {
+                try {
+                    if (!ms.isReady()) {
+                        return false;
+                    }
+                } catch (RemoteException e) {
                     return false;
                 }
-            } catch (RemoteException e) {
-                return false;
             }
         }
         return true;
     }
 
     @Override
-    public boolean isReady() {
+    public synchronized boolean isReady() {
         if (messengerServices.size() != ports.size()) {
             init();
         }
@@ -82,7 +84,7 @@ public class MessengerServiceImpl implements MessengerService {
      */
     @Override
     public synchronized String put(String key, String val, boolean recur) {
-        if (!checkReady()) {
+        if (!checkReady(recur)) {
             logger.log(Level.WARNING, "Servers not ready");
             return "Servers not ready";
         }
@@ -140,7 +142,7 @@ public class MessengerServiceImpl implements MessengerService {
      */
     @Override
     public synchronized String del(String key, boolean recur) {
-        if (!checkReady()) {
+        if (!checkReady(recur)) {
             logger.log(Level.WARNING, "Servers not ready");
             return "Servers not ready";
         }
