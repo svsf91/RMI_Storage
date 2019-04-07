@@ -14,6 +14,8 @@ public class MessengerServiceImpl implements MessengerService {
     private Logger logger;
     private List<Integer> ports;
     private List<MessengerService> messengerServices;
+    int num;
+    Vote acceptedVote;
 
     public MessengerServiceImpl(List<Integer> _ports) {
         map = new HashMap<>();
@@ -43,29 +45,6 @@ public class MessengerServiceImpl implements MessengerService {
         }
     }
 
-    /**
-     * check whether replicate servers are ready
-     * by invoking their isReady()
-     * @return boolean
-     */
-    private synchronized boolean checkReady(boolean recur) {
-        if (!isReady()) {
-            return false;
-        }
-        if (recur) {
-            for (MessengerService ms : messengerServices) {
-                try {
-                    if (!ms.isReady()) {
-                        return false;
-                    }
-                } catch (RemoteException e) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
     @Override
     public synchronized boolean isReady() {
         if (messengerServices.size() != ports.size()) {
@@ -84,10 +63,6 @@ public class MessengerServiceImpl implements MessengerService {
      */
     @Override
     public synchronized String put(String key, String val, boolean recur) {
-        if (!checkReady(recur)) {
-            logger.log(Level.WARNING, "Servers not ready");
-            return "Servers not ready";
-        }
         logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
         if (map.containsKey(key)) {
             logger.log(Level.INFO, String.format("%s already exists", key));
@@ -96,11 +71,11 @@ public class MessengerServiceImpl implements MessengerService {
         map.put(key, val);
         String successMsg = String.format("PUT (%s, %s)", key, val);
         // If request comes from a client, update other servers
-        if(recur) {
+        if (recur) {
             try {
                 for (MessengerService ms : messengerServices) {
                     String ret = ms.put(key, val, false);
-                    if(!ret.equals(successMsg)) {
+                    if (!ret.equals(successMsg)) {
                         logger.log(Level.WARNING, "Inconsistent data");
                         return "Inconsistent data";
                     }
@@ -142,21 +117,17 @@ public class MessengerServiceImpl implements MessengerService {
      */
     @Override
     public synchronized String del(String key, boolean recur) {
-        if (!checkReady(recur)) {
-            logger.log(Level.WARNING, "Servers not ready");
-            return "Servers not ready";
-        }
         logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
         if (map.containsKey(key)) {
             logger.log(Level.INFO, String.format("DELETE %s", key));
             map.remove(key);
             // If request comes from a client, update other servers
             String successMsg = String.format("%s deleted successfully", key);
-            if(recur) {
+            if (recur) {
                 try {
                     for (MessengerService ms : messengerServices) {
                         String ret = ms.del(key, false);
-                        if(!ret.equals(successMsg)) {
+                        if (!ret.equals(successMsg)) {
                             logger.log(Level.WARNING, "Inconsistent data");
                             return "Inconsistent data";
                         }
@@ -170,6 +141,94 @@ public class MessengerServiceImpl implements MessengerService {
         } else {
             logger.log(Level.INFO, String.format("%s does not exist", key));
             return String.format("%s does not exist", key);
+        }
+    }
+
+    @Override
+    public Vote prepare(Vote vote){
+        if (vote.num > acceptedVote.num) {
+            acceptedVote = vote;
+            logger.log(Level.INFO, "Accept proposal %s", vote.toString());
+            return vote;
+        } else {
+            return acceptedVote;
+        }
+    }
+
+    @Override
+    public boolean accept(Vote vote){
+        return vote.equals(acceptedVote);
+    }
+
+    @Override
+    public String execute(Vote vote) {
+        if (vote.operation == Operation.PUT) {
+            map.put(vote.key, vote.val);
+            return String.format("Put %s, %s successfully", vote.key, vote.val);
+        } else if (vote.operation == Operation.DEL) {
+            if (map.containsKey(vote.key)) {
+                map.remove(vote.key);
+                return String.format("Delete %s successfully", vote.key);
+            } else {
+                return String.format("Delete %s failed: no such key", vote.key);
+            }
+        } else {
+            String val = map.get(vote.key);
+            return String.format("Get %s: values is %s", vote.key, val);
+        }
+    }
+
+    @Override
+    public String propose(Operation operation, String key, String val) {
+        Vote proposal = new Vote(num, operation, key, val);
+        num += messengerServices.size();
+        int count = 0;
+        for (MessengerService messengerService : messengerServices) {
+            try {
+                Vote vote = messengerService.prepare(proposal);
+                if (vote.num > proposal.num) {
+                    proposal = vote;
+                    break;
+                } else if (vote.num == proposal.num) {
+                    count++;
+                }
+            } catch (NullPointerException | RemoteException e) {
+                logger.log(Level.WARNING, "Server down");
+                return "Server down";
+            }
+        }
+
+        if (proposal.num > num - messengerServices.size() || count >= Math.ceil(messengerServices.size() / 2.0)) {
+            if (proposal.num > num - messengerServices.size()) {
+                logger.log(Level.INFO, "Propose succeeded");
+            } else {
+                logger.log(Level.INFO, "Propose failed");
+            }
+            count = 0;
+            for (MessengerService messengerService : messengerServices) {
+                try {
+                    boolean vote = messengerService.accept(proposal);
+                    if (vote) {
+                        count++;
+                    }
+                } catch (NullPointerException | RemoteException e) {
+                    logger.log(Level.WARNING, "Server down");
+                    return "Server down";
+                }
+            }
+            if (count >= Math.ceil(messengerServices.size() / 2.0)) {
+                for (MessengerService messengerService : messengerServices) {
+                    try {
+                        messengerService.execute(proposal);
+                    } catch (NullPointerException | RemoteException e) {
+                        logger.log(Level.WARNING, "Server down");
+                        return "Server down";
+                    }
+                }
+            }
+            return execute(proposal);
+        } else {
+            return "Accept failed";
         }
     }
 }
