@@ -38,33 +38,22 @@ public class Client {
     public void execute() {
         while (true) {
             try {
-                System.out.println("Enter operation (GET, PUT or DEL)");
-                String operation = systemBufferedReader.readLine();
-                if (!Arrays.asList("GET", "PUT", "DEL").contains(operation)) {
-                    logger.log(Level.WARNING, String.format("Invalid operation: %s", operation));
-                    continue;
+                System.out.println("Enter commands");
+                String command = systemBufferedReader.readLine();
+                String[] commands = command.split("\\s+");
+                String res = "";
+                if(commands[0].equals("GET")) {
+                    String key = commands[1];
+                    res = messengerService.propose(Operation.GET, key, null);
+                } else if(commands[0].equals("PUT")) {
+                    String key = commands[1];
+                    String val = commands[2];
+                    res = messengerService.propose(Operation.PUT, key, val);
+                } else {
+                    String key = commands[1];
+                    res = messengerService.propose(Operation.DEL, key, null);
                 }
-                System.out.println("Enter key");
-                String key = systemBufferedReader.readLine();
-                switch (operation) {
-                    case "GET": {
-                        String res = messengerService.get(key);
-                        logger.log(Level.INFO, res);
-                        break;
-                    }
-                    case "DEL": {
-                        String res = messengerService.del(key, true);
-                        logger.log(Level.INFO, res);
-                        break;
-                    }
-                    case "PUT": {
-                        System.out.println("Enter value");
-                        String value = systemBufferedReader.readLine();
-                        String res = messengerService.put(key, value, true);
-                        logger.log(Level.INFO, res);
-                        break;
-                    }
-                }
+                logger.log(Level.INFO, res);
             } catch (IOException e) {
                 logger.log(Level.WARNING, e.getLocalizedMessage());
             }

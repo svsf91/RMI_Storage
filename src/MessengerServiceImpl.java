@@ -17,27 +17,34 @@ public class MessengerServiceImpl implements MessengerService {
     int num;
     Vote acceptedVote;
 
-    public MessengerServiceImpl(List<Integer> _ports) {
+    public MessengerServiceImpl(int num, List<Integer> _ports) {
+        this.num = num;
         map = new HashMap<>();
         logger = Logger.getLogger(Logger.GLOBAL_LOGGER_NAME);
         ports = _ports;
         messengerServices = new ArrayList<>();
         logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
+        acceptedVote = new Vote(0, Operation.GET, "", null);
     }
 
     /**
      * init list messengerServices storing replicate servers' stubs
      */
-    private synchronized void init() {
-        while (true) {
+    @Override
+    public void init(boolean recur) {
+        while (!isReady()) {
             try {
                 List<MessengerService> l = new ArrayList<>();
                 for (int port : ports) {
                     Registry registry = LocateRegistry.getRegistry(port);
                     MessengerService messengerService = (MessengerService) registry.lookup("MessengerService");
+                    if(recur) {
+                        messengerService.init(false);
+                    }
                     l.add(messengerService);
                 }
                 messengerServices = l;
+                logger.log(Level.WARNING, "Server ready");
                 return;
             } catch (RemoteException | NotBoundException e) {
                 logger.log(Level.WARNING, "Server not ready");
@@ -45,12 +52,8 @@ public class MessengerServiceImpl implements MessengerService {
         }
     }
 
-    @Override
-    public synchronized boolean isReady() {
-        if (messengerServices.size() != ports.size()) {
-            init();
-        }
-        return true;
+    public boolean isReady() {
+        return messengerServices.size() == ports.size();
     }
 
     /**
@@ -148,9 +151,10 @@ public class MessengerServiceImpl implements MessengerService {
     public Vote prepare(Vote vote){
         if (vote.num > acceptedVote.num) {
             acceptedVote = vote;
-            logger.log(Level.INFO, "Accept proposal %s", vote.toString());
+            logger.log(Level.INFO, String.format("Accept proposal: <%s>", vote.toString()));
             return vote;
         } else {
+            logger.log(Level.INFO, String.format("Reject proposal: <%s>, accepted proposal: <%s>", vote.toString(), acceptedVote.toString()));
             return acceptedVote;
         }
     }
@@ -173,15 +177,20 @@ public class MessengerServiceImpl implements MessengerService {
                 return String.format("Delete %s failed: no such key", vote.key);
             }
         } else {
-            String val = map.get(vote.key);
-            return String.format("Get %s: values is %s", vote.key, val);
+            if(map.containsKey(vote.key)) {
+                String val = map.get(vote.key);
+                return String.format("Get %s: value is %s", vote.key, val);
+            } else {
+                return String.format("Get %s failed: no such key", vote.key);
+            }
         }
     }
 
     @Override
     public String propose(Operation operation, String key, String val) {
+        init(true);
         Vote proposal = new Vote(num, operation, key, val);
-        num += messengerServices.size();
+        logger.log(Level.INFO, "Proposing: " + proposal.toString());
         int count = 0;
         for (MessengerService messengerService : messengerServices) {
             try {
@@ -189,20 +198,20 @@ public class MessengerServiceImpl implements MessengerService {
                 if (vote.num > proposal.num) {
                     proposal = vote;
                     break;
-                } else if (vote.num == proposal.num) {
+                } else {
                     count++;
                 }
             } catch (NullPointerException | RemoteException e) {
-                logger.log(Level.WARNING, "Server down");
+                logger.log(Level.WARNING, e.getLocalizedMessage());
                 return "Server down";
             }
         }
 
-        if (proposal.num > num - messengerServices.size() || count >= Math.ceil(messengerServices.size() / 2.0)) {
-            if (proposal.num > num - messengerServices.size()) {
-                logger.log(Level.INFO, "Propose succeeded");
-            } else {
+        if (proposal.num > num || count >= Math.ceil(messengerServices.size() / 2.0)) {
+            if (proposal.num > num) {
                 logger.log(Level.INFO, "Propose failed");
+            } else {
+                logger.log(Level.INFO, "Propose successfully");
             }
             count = 0;
             for (MessengerService messengerService : messengerServices) {
@@ -226,8 +235,10 @@ public class MessengerServiceImpl implements MessengerService {
                     }
                 }
             }
+            num += messengerServices.size() + 1;
             return execute(proposal);
         } else {
+            num += messengerServices.size() + 1;
             return "Accept failed";
         }
     }

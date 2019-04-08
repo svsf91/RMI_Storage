@@ -1,4 +1,6 @@
-public class Vote {
+import java.io.Serializable;
+
+public class Vote implements Serializable {
     int num;
     Operation operation;
     String key;
