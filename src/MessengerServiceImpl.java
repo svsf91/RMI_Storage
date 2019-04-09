@@ -2,10 +2,7 @@ import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -14,8 +11,9 @@ public class MessengerServiceImpl implements MessengerService {
     private Logger logger;
     private List<Integer> ports;
     private List<MessengerService> messengerServices;
-    int num;
-    Vote acceptedVote;
+    private int num;
+    private Vote acceptedVote;
+    private Random random;
 
     public MessengerServiceImpl(int num, List<Integer> _ports) {
         this.num = num;
@@ -24,7 +22,8 @@ public class MessengerServiceImpl implements MessengerService {
         ports = _ports;
         messengerServices = new ArrayList<>();
         logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
-        acceptedVote = new Vote(0, Operation.GET, "", null);
+        acceptedVote = new Vote(0, Operation.GET, "", "");
+        random = new Random();
     }
 
     /**
@@ -56,132 +55,50 @@ public class MessengerServiceImpl implements MessengerService {
         return messengerServices.size() == ports.size();
     }
 
-    /**
-     * add key-value pair to HashMap
-     *
-     * @param key
-     * @param val
-     * @param recur a flag indicating whether the request comes from a client or a replicate server
-     * @return message of status
-     */
-    @Override
-    public synchronized String put(String key, String val, boolean recur) {
-        logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
-        if (map.containsKey(key)) {
-            logger.log(Level.INFO, String.format("%s already exists", key));
-        }
-        logger.log(Level.INFO, String.format("PUT (%s, %s)", key, val));
-        map.put(key, val);
-        String successMsg = String.format("PUT (%s, %s)", key, val);
-        // If request comes from a client, update other servers
-        if (recur) {
-            try {
-                for (MessengerService ms : messengerServices) {
-                    String ret = ms.put(key, val, false);
-                    if (!ret.equals(successMsg)) {
-                        logger.log(Level.WARNING, "Inconsistent data");
-                        return "Inconsistent data";
-                    }
-                }
-            } catch (RemoteException e) {
-                logger.log(Level.WARNING, "Servers not ready");
-                return "Servers not ready";
-            }
-        }
-        return successMsg;
-    }
-
-    /**
-     * retrive value of given key
-     * handle key not exist
-     *
-     * @param key
-     * @return message of status
-     */
-    @Override
-    public synchronized String get(String key) {
-        logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
-        if (map.containsKey(key)) {
-            logger.log(Level.INFO, String.format("GET %s, value is %s", key, map.get(key)));
-            return String.format("GET %s, value is %s", key, map.get(key));
-        } else {
-            logger.log(Level.INFO, String.format("%s does not exist", key));
-            return String.format("%s does not exist", key);
-        }
-    }
-
-    /**
-     * delete key-value pair given by key
-     * handle key not exist
-     *
-     * @param key
-     * @param recur a flag indicating whether the request comes from a client or a replicate server
-     * @return message of status
-     */
-    @Override
-    public synchronized String del(String key, boolean recur) {
-        logger.log(Level.INFO, String.format("Current thread: %s", Thread.currentThread().getName()));
-        if (map.containsKey(key)) {
-            logger.log(Level.INFO, String.format("DELETE %s", key));
-            map.remove(key);
-            // If request comes from a client, update other servers
-            String successMsg = String.format("%s deleted successfully", key);
-            if (recur) {
-                try {
-                    for (MessengerService ms : messengerServices) {
-                        String ret = ms.del(key, false);
-                        if (!ret.equals(successMsg)) {
-                            logger.log(Level.WARNING, "Inconsistent data");
-                            return "Inconsistent data";
-                        }
-                    }
-                } catch (RemoteException e) {
-                    logger.log(Level.WARNING, "Servers not ready");
-                    return "Servers not ready";
-                }
-            }
-            return successMsg;
-        } else {
-            logger.log(Level.INFO, String.format("%s does not exist", key));
-            return String.format("%s does not exist", key);
-        }
-    }
 
     @Override
     public Vote prepare(Vote vote){
+        if(random.nextFloat() < 0.2) {
+            logger.log(Level.INFO, "Simulating server down");
+            return null;
+        }
         if (vote.num > acceptedVote.num) {
             acceptedVote = vote;
-            logger.log(Level.INFO, String.format("Accept proposal: <%s>", vote.toString()));
+            logger.log(Level.INFO, String.format("Accept proposal: %s", vote.toString()));
             return vote;
         } else {
-            logger.log(Level.INFO, String.format("Reject proposal: <%s>, accepted proposal: <%s>", vote.toString(), acceptedVote.toString()));
+            logger.log(Level.INFO, String.format("Reject proposal: %s, accepted proposal: %s", vote.toString(), acceptedVote.toString()));
             return acceptedVote;
         }
     }
 
     @Override
-    public boolean accept(Vote vote){
-        return vote.equals(acceptedVote);
+    public Vote accept(Vote vote){
+        if(random.nextFloat() < 0.2) {
+            logger.log(Level.INFO, "Simulating server down");
+            return null;
+        }
+        return acceptedVote;
     }
 
     @Override
     public String execute(Vote vote) {
         if (vote.operation == Operation.PUT) {
             map.put(vote.key, vote.val);
-            return String.format("Put %s, %s successfully", vote.key, vote.val);
+            return String.format("[PUT %s %s] successfully", vote.key, vote.val);
         } else if (vote.operation == Operation.DEL) {
             if (map.containsKey(vote.key)) {
                 map.remove(vote.key);
-                return String.format("Delete %s successfully", vote.key);
+                return String.format("[DEL %s] successfully", vote.key);
             } else {
-                return String.format("Delete %s failed: no such key", vote.key);
+                return String.format("[DEL %s] failed: no such key", vote.key);
             }
         } else {
             if(map.containsKey(vote.key)) {
                 String val = map.get(vote.key);
-                return String.format("Get %s: value is %s", vote.key, val);
+                return String.format("[GET %s] successfully: value is %s", vote.key, val);
             } else {
-                return String.format("Get %s failed: no such key", vote.key);
+                return String.format("[GET %s] failed: no such key", vote.key);
             }
         }
     }
@@ -192,45 +109,53 @@ public class MessengerServiceImpl implements MessengerService {
         Vote proposal = new Vote(num, operation, key, val);
         logger.log(Level.INFO, "Proposing: " + proposal.toString());
         int count = 0;
+        int alive = 0;
         for (MessengerService messengerService : messengerServices) {
             try {
                 Vote vote = messengerService.prepare(proposal);
-                if (vote.num > proposal.num) {
-                    proposal = vote;
-                    break;
-                } else {
-                    count++;
+                if(vote != null) {
+                    if (vote.num > proposal.num) {
+                        proposal = vote;
+                        break;
+                    } else {
+                        count++;
+                    }
+                    alive++;
                 }
             } catch (NullPointerException | RemoteException e) {
-                logger.log(Level.WARNING, e.getLocalizedMessage());
+                logger.log(Level.WARNING, e.getMessage());
                 return "Server down";
             }
         }
 
-        if (proposal.num > num || count >= Math.ceil(messengerServices.size() / 2.0)) {
+        if (proposal.num > num || count >= Math.ceil(alive / 2.0)) {
             if (proposal.num > num) {
                 logger.log(Level.INFO, "Propose failed");
             } else {
                 logger.log(Level.INFO, "Propose successfully");
             }
             count = 0;
+            alive = 0;
             for (MessengerService messengerService : messengerServices) {
                 try {
-                    boolean vote = messengerService.accept(proposal);
-                    if (vote) {
-                        count++;
+                    Vote vote = messengerService.accept(proposal);
+                    if (vote != null) {
+                        if(vote.equals(proposal)) {
+                            count++;
+                        }
+                        alive++;
                     }
                 } catch (NullPointerException | RemoteException e) {
-                    logger.log(Level.WARNING, "Server down");
+                    logger.log(Level.WARNING, e.getMessage());
                     return "Server down";
                 }
             }
-            if (count >= Math.ceil(messengerServices.size() / 2.0)) {
+            if (count >= Math.ceil(alive / 2.0)) {
                 for (MessengerService messengerService : messengerServices) {
                     try {
                         messengerService.execute(proposal);
                     } catch (NullPointerException | RemoteException e) {
-                        logger.log(Level.WARNING, "Server down");
+                        logger.log(Level.WARNING, e.getMessage());
                         return "Server down";
                     }
                 }

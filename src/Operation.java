@@ -1,3 +1,3 @@
 public enum Operation {
-    GET, PUT, DEL;
+    GET, PUT, DEL
 }

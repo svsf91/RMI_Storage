@@ -5,6 +5,7 @@ public class Vote implements Serializable {
     Operation operation;
     String key;
     String val;
+    boolean isDown;
 
     public Vote(int num, Operation operation, String key, String val) {
         this.num = num;
@@ -15,7 +16,8 @@ public class Vote implements Serializable {
 
     @Override
     public String toString() {
-        return "Proposal " + this.num + ": " + this.operation.toString() + " " + this.key + (this.val == null ? "" : " " + this.val);
+        return String.format("<Vote: %d [%s %s %s]>", this.num, this.operation.toString(),
+                this.key, this.val);
     }
 
 }
